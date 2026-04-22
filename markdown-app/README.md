@@ -1,73 +1,84 @@
-# React + TypeScript + Vite
+# 墨砚 - Markdown 笔记应用
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+一个简洁优雅的本地 Markdown 笔记应用，支持实时预览、多种主题和文档导出。
 
-Currently, two official plugins are available:
+## 特性
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+### 笔记管理
+- **创建笔记** - 点击「新建」按钮或快捷键 `Cmd/Ctrl + N`
+- **编辑笔记** - 左侧输入，右侧实时预览
+- **删除笔记** - 悬停笔记卡片，点击删除按钮
+- **搜索笔记** - 顶部搜索框支持标题和内容搜索
+- **导入 Markdown** - 支持导入本地 `.md` 文件
 
-## React Compiler
+### 编辑功能
+- **实时预览** - 左右分栏，编辑与预览同步进行
+- **专注模式** - 隐藏侧边栏和顶部栏，沉浸式写作（点击扩展按钮或按 `Esc` 退出）
+- **字数统计** - 底部状态栏实时显示字数和字符数
+- **自动保存** - 编辑后自动保存到本地
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### 格式支持
+- 标题、段落、列表
+- 粗体、斜体、删除线
+- 代码块（支持语法高亮）
+- 引用块
+- 链接和图片
+- 表格
 
-## Expanding the ESLint configuration
+### 导出功能
+- **Markdown (.md)** - 保留原始格式
+- **HTML (.html)** - 独立的 HTML 文件
+- **PDF** - 通过浏览器打印功能导出
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### 主题
+- **浅色模式** - 温暖纸张质感
+- **深色模式** - 适合夜间使用
+- **护眼模式** - 暖色调减少眼睛疲劳
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+点击右上角的太阳/月亮/调色板图标切换主题。
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+## 技术栈
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- **React 19** + TypeScript
+- **Vite** - 快速开发构建
+- **Tailwind CSS** - 样式
+- **react-markdown** - Markdown 渲染
+- **react-syntax-highlighter** - 代码高亮
+- **localStorage** - 本地数据持久化
+
+## 开始使用
+
+### 安装依赖
+
+```bash
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### 启动开发服务器
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run dev
 ```
+
+访问 http://localhost:5173
+
+### 构建生产版本
+
+```bash
+npm run build
+```
+
+## 快捷键
+
+| 快捷键 | 功能 |
+|--------|------|
+| `Cmd/Ctrl + N` | 新建笔记 |
+| `Esc` | 退出专注模式 |
+
+## 数据存储
+
+所有笔记保存在浏览器 localStorage 中，清除浏览器数据会导致笔记丢失。
+
+## License
+
+MIT

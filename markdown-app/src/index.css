@@ -2,7 +2,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=Noto+Sans+SC:wght@300;400;500&family=JetBrains+Mono:wght@400&display=swap');
 
 /* CSS Variables - Ink & Paper Palette */
-:root {
+/* Light Theme (default) */
+:root, [data-theme="light"] {
   --ink: #1a1a1a;
   --ink-light: #4a4a4a;
   --ink-faint: #888;
@@ -11,6 +12,36 @@
   --accent: #c94a3a;
   --border: #e2ddd5;
   --shadow: rgba(26, 26, 26, 0.06);
+  --editor-bg: #ffffff;
+  --preview-bg: #faf7f2;
+}
+
+/* Dark Theme */
+[data-theme="dark"] {
+  --ink: #e8e4dc;
+  --ink-light: #a8a298;
+  --ink-faint: #6b6660;
+  --paper: #1e1e1e;
+  --paper-dark: #2a2a2a;
+  --accent: #e07a5f;
+  --border: #3d3d3d;
+  --shadow: rgba(0, 0, 0, 0.3);
+  --editor-bg: #252525;
+  --preview-bg: #1e1e1e;
+}
+
+/* Sepia/Eye-care Theme */
+[data-theme="sepia"] {
+  --ink: #5c4a3a;
+  --ink-light: #7a6a5a;
+  --ink-faint: #9a8a7a;
+  --paper: #f5efe6;
+  --paper-dark: #e8dfd0;
+  --accent: #8b6914;
+  --border: #d4c8b8;
+  --shadow: rgba(92, 74, 58, 0.08);
+  --editor-bg: #faf6ee;
+  --preview-bg: #f5efe6;
 }
 
 * {
@@ -372,7 +403,7 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: white;
+  background: var(--editor-bg);
   overflow: hidden;
 }
 
@@ -411,6 +442,82 @@ body {
 }
 .status-text {
   font-size: 12px;
+  color: var(--ink-faint);
+}
+.status-divider {
+  color: var(--border);
+  margin: 0 6px;
+}
+
+/* Topbar Actions */
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 12px;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  border: none;
+  color: var(--ink-light);
+  cursor: pointer;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+}
+.action-btn:hover {
+  background: var(--paper-dark);
+  color: var(--ink);
+}
+
+/* Export Menu */
+.export-menu-container {
+  position: relative;
+}
+
+.export-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 200px;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px var(--shadow);
+  padding: 6px;
+  z-index: 100;
+  animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.export-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  color: var(--ink);
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.1s;
+  text-align: left;
+}
+.export-option:hover {
+  background: var(--paper-dark);
+}
+.export-option svg {
   color: var(--ink-faint);
 }
 
@@ -678,6 +785,31 @@ body {
   font-size: 12px;
   font-family: inherit;
   color: var(--ink-faint);
+}
+
+/* ============================================
+   FOCUS MODE
+   ============================================ */
+.focus-mode .editor-preview-container {
+  height: 100vh;
+}
+
+.focus-mode .editor-topbar {
+  opacity: 0.3;
+  transition: opacity 0.3s ease;
+}
+
+.focus-mode .editor-topbar:hover {
+  opacity: 1;
+}
+
+.focus-mode .title-area {
+  padding-top: 40px;
+}
+
+.focus-mode .content-textarea,
+.focus-mode .preview-pane {
+  padding: 40px 80px;
 }
 
 /* ============================================

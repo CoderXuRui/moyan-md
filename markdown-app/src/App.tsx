@@ -73,6 +73,79 @@ const CloseIcon = () => (
   </svg>
 )
 
+const DownloadIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="7 10 12 15 17 10" />
+    <line x1="12" y1="15" x2="12" y2="3" />
+  </svg>
+)
+
+const ExportIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <line x1="16" y1="13" x2="8" y2="13" />
+    <line x1="16" y1="17" x2="8" y2="17" />
+  </svg>
+)
+
+const SunIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="5" />
+    <line x1="12" y1="1" x2="12" y2="3" />
+    <line x1="12" y1="21" x2="12" y2="23" />
+    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+    <line x1="1" y1="12" x2="3" y2="12" />
+    <line x1="21" y1="12" x2="23" y2="12" />
+    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+  </svg>
+)
+
+const MoonIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+  </svg>
+)
+
+const PaletteIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <path d="M12 2a7 7 0 0 0 0 14 4 4 0 0 1 0 8 7 7 0 0 0 0-14" />
+    <circle cx="12" cy="9" r="2" />
+    <circle cx="9" cy="14" r="2" />
+    <circle cx="15" cy="14" r="2" />
+  </svg>
+)
+
+const UploadIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="17 8 12 3 7 8" />
+    <line x1="12" y1="3" x2="12" y2="15" />
+  </svg>
+)
+
+const MaximizeIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="15 3 21 3 21 9" />
+    <polyline points="9 21 3 21 3 15" />
+    <line x1="21" y1="3" x2="14" y2="10" />
+    <line x1="3" y1="21" x2="10" y2="14" />
+  </svg>
+)
+
+const MinimizeIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="4 14 10 14 10 20" />
+    <polyline points="20 10 14 10 14 4" />
+    <line x1="14" y1="10" x2="21" y2="3" />
+    <line x1="3" y1="21" x2="10" y2="14" />
+  </svg>
+)
+
 // Syntax highlighting style
 const syntaxStyle = {
   ...vscDarkPlus,
@@ -100,11 +173,53 @@ function App() {
   const [editContent, setEditContent] = useState('')
   const [isCreating, setIsCreating] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [showExportMenu, setShowExportMenu] = useState(false)
+  const [isFocusMode, setIsFocusMode] = useState(false)
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('markdown-theme')
+    return saved || 'light'
+  })
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const exportMenuRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Apply theme to document
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme)
+    localStorage.setItem('markdown-theme', theme)
+  }, [theme])
+
+  const cycleTheme = useCallback(() => {
+    setTheme(prev => {
+      if (prev === 'light') return 'dark'
+      if (prev === 'dark') return 'sepia'
+      return 'light'
+    })
+  }, [])
+
+  // Word and character count
+  const wordCount = useMemo(() => {
+    if (!editContent.trim()) return 0
+    return editContent.trim().split(/\s+/).length
+  }, [editContent])
+
+  const charCount = useMemo(() => {
+    return editContent.length
+  }, [editContent])
 
   useEffect(() => {
     saveNotes(notes)
   }, [notes])
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setShowExportMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const filteredNotes = useMemo(() => {
     if (!searchQuery.trim()) return notes
@@ -122,6 +237,7 @@ function App() {
     setEditContent(note.content)
     setIsCreating(false)
     setIsMobileMenuOpen(false)
+    setShowExportMenu(false)
     setTimeout(() => textareaRef.current?.focus(), 100)
   }, [])
 
@@ -138,6 +254,7 @@ function App() {
     setEditTitle('')
     setEditContent('')
     setIsCreating(true)
+    setShowExportMenu(false)
     setTimeout(() => textareaRef.current?.focus(), 100)
   }, [])
 
@@ -164,6 +281,114 @@ function App() {
     }
   }, [selectedNote])
 
+  // Import markdown file
+  const handleImportFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file && file.name.endsWith('.md')) {
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        const content = event.target?.result as string
+        // Try to extract title from first heading or use filename
+        const titleMatch = content.match(/^#\s+(.+)$/m)
+        const title = titleMatch ? titleMatch[1] : file.name.replace('.md', '')
+        // Remove the title heading from content if it exists
+        const cleanContent = content.replace(/^#\s+.+\n+/, '')
+
+        const newNote: Note = {
+          id: uuidv4(),
+          title,
+          content: cleanContent,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        }
+        setNotes(prev => [newNote, ...prev])
+        setSelectedNote(newNote)
+        setEditTitle(title)
+        setEditContent(cleanContent)
+        setIsCreating(false)
+        setIsMobileMenuOpen(false)
+        setTimeout(() => textareaRef.current?.focus(), 100)
+      }
+      reader.readAsText(file)
+    }
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }, [])
+
+  // Export functions
+  const exportMarkdown = useCallback(() => {
+    const content = `# ${editTitle || '无标题'}\n\n${editContent}`
+    const blob = new Blob([content], { type: 'text/markdown' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${editTitle || '无标题'}.md`
+    a.click()
+    URL.revokeObjectURL(url)
+    setShowExportMenu(false)
+  }, [editTitle, editContent])
+
+  const exportHTML = useCallback(() => {
+    const htmlContent = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${editTitle || '无标题'}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 40px 20px; line-height: 1.6; color: #333; }
+    h1, h2, h3 { font-weight: 600; margin-top: 1.5em; }
+    code { background: #f5f5f5; padding: 2px 6px; border-radius: 4px; font-family: 'SF Mono', Monaco, monospace; }
+    pre { background: #1a1a1a; color: #f0f0f0; padding: 16px; border-radius: 8px; overflow-x: auto; }
+    pre code { background: transparent; padding: 0; }
+    blockquote { border-left: 3px solid #c94a3a; margin: 1em 0; padding-left: 16px; color: #666; font-style: italic; }
+    img { max-width: 100%; border-radius: 8px; }
+  </style>
+</head>
+<body>
+${editContent}
+</body>
+</html>`
+    const blob = new Blob([htmlContent], { type: 'text/html' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${editTitle || '无标题'}.html`
+    a.click()
+    URL.revokeObjectURL(url)
+    setShowExportMenu(false)
+  }, [editTitle, editContent])
+
+  const exportPDF = useCallback(() => {
+    const printWindow = window.open('', '_blank')
+    if (printWindow) {
+      printWindow.document.write(`<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>${editTitle || '无标题'}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 40px 20px; line-height: 1.6; color: #333; }
+    h1, h2, h3 { font-weight: 600; margin-top: 1.5em; }
+    code { background: #f5f5f5; padding: 2px 6px; border-radius: 4px; font-family: 'SF Mono', Monaco, monospace; font-size: 0.9em; }
+    pre { background: #1a1a1a; color: #f0f0f0; padding: 16px; border-radius: 8px; overflow-x: auto; }
+    pre code { background: transparent; padding: 0; }
+    blockquote { border-left: 3px solid #c94a3a; margin: 1em 0; padding-left: 16px; color: #666; font-style: italic; }
+    img { max-width: 100%; border-radius: 8px; }
+    @media print { body { padding: 20px; } }
+  </style>
+</head>
+<body>
+${editContent}
+</body>
+</html>`)
+      printWindow.document.close()
+      printWindow.print()
+    }
+    setShowExportMenu(false)
+  }, [editTitle, editContent])
+
   useEffect(() => {
     if (!selectedNote || isCreating) return
     const timer = setTimeout(handleUpdateNote, 800)
@@ -176,14 +401,26 @@ function App() {
         e.preventDefault()
         handleCreateNote()
       }
+      if (e.key === 'Escape' && isFocusMode) {
+        setIsFocusMode(false)
+      }
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleCreateNote])
+  }, [handleCreateNote, isFocusMode])
 
   return (
-    <div className="app-container">
-      {/* Header */}
+    <div className={`app-container ${isFocusMode ? 'focus-mode' : ''}`}>
+      {/* Hidden file input for import */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleImportFile}
+        accept=".md,text/markdown"
+        style={{ display: 'none' }}
+      />
+      {/* Header - hidden in focus mode */}
+      {!isFocusMode && (
       <header className="app-header">
         <div className="header-left">
           <button
@@ -213,15 +450,33 @@ function App() {
         </div>
 
         <div className="header-right">
+          <button
+            className="action-btn theme-btn"
+            onClick={cycleTheme}
+            title={`当前主题: ${theme === 'light' ? '浅色' : theme === 'dark' ? '深色' : '护眼'}`}
+          >
+            {theme === 'light' && <SunIcon />}
+            {theme === 'dark' && <MoonIcon />}
+            {theme === 'sepia' && <PaletteIcon />}
+          </button>
+          <button
+            className="action-btn"
+            onClick={() => fileInputRef.current?.click()}
+            title="导入 Markdown 文件"
+          >
+            <UploadIcon />
+          </button>
           <button className="new-note-btn" onClick={handleCreateNote}>
             <PlusIcon />
             <span>新建</span>
           </button>
         </div>
       </header>
+      )}
 
       <div className="app-body">
-        {/* Sidebar */}
+        {/* Sidebar - hidden in focus mode */}
+        {!isFocusMode && (
         <aside className={`sidebar ${isMobileMenuOpen ? 'sidebar--open' : ''}`}>
           <div className="sidebar-header">
             <span className="sidebar-title">笔记 ({filteredNotes.length})</span>
@@ -272,8 +527,9 @@ function App() {
             )}
           </div>
         </aside>
+        )}
 
-        {isMobileMenuOpen && (
+        {isMobileMenuOpen && !isFocusMode && (
           <div className="sidebar-overlay" onClick={() => setIsMobileMenuOpen(false)} />
         )}
 
@@ -289,11 +545,58 @@ function App() {
                 >
                   <CloseIcon />
                 </button>
+
+                <div className="topbar-actions">
+                  {/* Focus mode */}
+                  <button
+                    className="action-btn"
+                    onClick={() => setIsFocusMode(!isFocusMode)}
+                    title={isFocusMode ? '退出专注模式 (Esc)' : '专注模式'}
+                  >
+                    {isFocusMode ? <MinimizeIcon /> : <MaximizeIcon />}
+                  </button>
+
+                  {/* Export menu */}
+                  <div className="export-menu-container" ref={exportMenuRef}>
+                    <button
+                      className="action-btn"
+                      onClick={() => setShowExportMenu(!showExportMenu)}
+                      title="导出文档"
+                    >
+                      <DownloadIcon />
+                    </button>
+                    {showExportMenu && (
+                      <div className="export-menu">
+                        <button className="export-option" onClick={exportMarkdown}>
+                          <ExportIcon />
+                          <span>导出 Markdown (.md)</span>
+                        </button>
+                        <button className="export-option" onClick={exportHTML}>
+                          <ExportIcon />
+                          <span>导出 HTML (.html)</span>
+                        </button>
+                        <button className="export-option" onClick={exportPDF}>
+                          <ExportIcon />
+                          <span>导出 PDF</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 <div className="editor-status">
                   <span className="status-dot" />
                   <span className="status-text">
                     {isCreating ? '新建中...' : '已保存'}
                   </span>
+                  {selectedNote && (
+                    <>
+                      <span className="status-divider">|</span>
+                      <span className="status-text">{wordCount} 字</span>
+                      <span className="status-divider">|</span>
+                      <span className="status-text">{charCount} 字符</span>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -316,7 +619,15 @@ function App() {
                     ref={textareaRef}
                     value={editContent}
                     onChange={e => setEditContent(e.target.value)}
-                    placeholder="在此书写..."
+                    placeholder="在此书写...
+
+支持 Markdown 语法：
+# 标题
+**粗体** *斜体*
+- 列表项
+`代码`
+```代码块```
+[链接](url)"
                     className="content-textarea"
                   />
                 </div>
@@ -328,11 +639,15 @@ function App() {
                 <div className="preview-pane">
                   <ReactMarkdown
                     components={{
+                      img({ src, alt, ...props }) {
+                        if (!src) return null
+                        return <img src={src} alt={alt || ''} style={{ maxWidth: '100%', borderRadius: '8px', margin: '1em 0' }} {...props} />
+                      },
                       code({ className, children, ...props }) {
                         const match = /language-(\w+)/.exec(className || '')
                         const isInline = !match && !className
                         if (isInline) {
-                          return <code className={className} {...props}>{children}</code>
+                          return <code {...props}>{children}</code>
                         }
                         return (
                           <SyntaxHighlighter

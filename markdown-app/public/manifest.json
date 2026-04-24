@@ -1,0 +1,22 @@
+{
+  "name": "墨砚 - Markdown 笔记",
+  "short_name": "墨砚",
+  "description": "优雅的 Markdown 笔记应用，支持离线编辑与实时预览",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#faf7f2",
+  "theme_color": "#1a1a1a",
+  "orientation": "any",
+  "scope": ".",
+  "icons": [
+    {
+      "src": "icons.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "categories": ["productivity", "utilities"],
+  "lang": "zh-CN",
+  "dir": "ltr"
+}

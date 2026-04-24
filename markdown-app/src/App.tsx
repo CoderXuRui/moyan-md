@@ -3,30 +3,28 @@ import ReactMarkdown from 'react-markdown'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { v4 as uuidv4 } from 'uuid'
+import type { Note } from './types'
+import {
+  getAllNotes,
+  saveNote,
+  deleteNote,
+  migrateFromLocalStorage,
+  getMeta,
+  setMeta,
+} from './db'
+import { useNetworkStatus } from './hooks/useNetworkStatus'
+import { registerSW, skipWaitingAndReload } from './sw-register'
+import FloatingToolbar from './components/FloatingToolbar'
+import AISettings from './components/AISettings'
+import AIComplete from './components/AIComplete'
+import CodeExplain from './components/CodeExplain'
+import type { AIConfig } from './ai/types'
+import { getAIConfig } from './ai/service'
+import { chat } from './ai/service'
+import { MARKDOWN_FIX_SYSTEM } from './ai/prompts'
 import './index.css'
 
-interface Note {
-  id: string
-  title: string
-  content: string
-  createdAt: number
-  updatedAt: number
-}
-
-const STORAGE_KEY = 'markdown-notes-v3'
-
-const loadNotes = (): Note[] => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    return stored ? JSON.parse(stored) : []
-  } catch {
-    return []
-  }
-}
-
-const saveNotes = (notes: Note[]): void => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(notes))
-}
+const THEME_META_KEY = 'theme'
 
 const formatTime = (timestamp: number): string => {
   const now = Date.now()
@@ -146,6 +144,45 @@ const MinimizeIcon = () => (
   </svg>
 )
 
+const OfflineIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="1" y1="1" x2="23" y2="23" />
+    <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
+    <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
+    <path d="M10.71 5.05A16 16 0 0 1 22.58 9" />
+    <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" />
+    <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+    <line x1="12" y1="20" x2="12.01" y2="20" />
+  </svg>
+)
+
+const CloudCheckIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+    <polyline points="22 4 12 14.01 9 11.01" />
+  </svg>
+)
+
+const SettingsIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.67 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.67 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.67a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 21.33 9a1.65 1.65 0 0 0 1.51 1H23a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+  </svg>
+)
+
+const WandIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72" />
+    <path d="m14 7 3 3" />
+    <path d="M5 6v4" />
+    <path d="M19 14v4" />
+    <path d="M10 2v2" />
+    <path d="M7 8H3" />
+    <path d="M21 16h-4" />
+    <path d="M11 3H9" />
+  </svg>
+)
+
 // Syntax highlighting style
 const syntaxStyle = {
   ...vscDarkPlus,
@@ -166,7 +203,8 @@ const syntaxStyle = {
 }
 
 function App() {
-  const [notes, setNotes] = useState<Note[]>(loadNotes)
+  // ====== State ======
+  const [notes, setNotes] = useState<Note[]>([])
   const [selectedNote, setSelectedNote] = useState<Note | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [editTitle, setEditTitle] = useState('')
@@ -175,19 +213,64 @@ function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [isFocusMode, setIsFocusMode] = useState(false)
-  const [theme, setTheme] = useState(() => {
-    const saved = localStorage.getItem('markdown-theme')
-    return saved || 'light'
-  })
+  const [theme, setTheme] = useState('light')
+  const [isLoading, setIsLoading] = useState(true)
+  const [swUpdateAvailable, setSwUpdateAvailable] = useState(false)
+  const [toolbarVisible, setToolbarVisible] = useState(false)
+  const [aiConfig, setAiConfig] = useState<AIConfig | null>(null)
+  const [showAISettings, setShowAISettings] = useState(false)
+  const [explainCode, setExplainCode] = useState<string | null>(null)
+  const [explainLang, setExplainLang] = useState<string | undefined>()
+  const [fixingMarkdown, setFixingMarkdown] = useState(false)
+
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const exportMenuRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isMountedRef = useRef(false)
 
-  // Apply theme to document
+  const { online } = useNetworkStatus()
+
+  // ====== Init: load from IndexedDB ======
+  useEffect(() => {
+    const init = async () => {
+      // 1. 尝试迁移旧数据
+      await migrateFromLocalStorage()
+
+      // 2. 加载笔记列表
+      const loaded = await getAllNotes()
+      setNotes(loaded)
+
+      // 3. 加载主题偏好
+      const savedTheme = (await getMeta(THEME_META_KEY) as string) || 'light'
+      setTheme(savedTheme)
+
+      // 4. 加载 AI 配置
+      const aiCfg = await getAIConfig()
+      if (aiCfg) setAiConfig(aiCfg)
+
+      setIsLoading(false)
+      isMountedRef.current = true
+    }
+    init()
+  }, [])
+
+  // ====== Apply theme ======
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
-    localStorage.setItem('markdown-theme', theme)
+    if (isMountedRef.current) {
+      setMeta(THEME_META_KEY, theme)
+    }
   }, [theme])
+
+  // ====== Register SW ======
+  useEffect(() => {
+    if (import.meta.env.PROD) {
+      registerSW({
+        onUpdate: () => setSwUpdateAvailable(true),
+      })
+    }
+  }, [])
 
   const cycleTheme = useCallback(() => {
     setTheme(prev => {
@@ -207,10 +290,7 @@ function App() {
     return editContent.length
   }, [editContent])
 
-  useEffect(() => {
-    saveNotes(notes)
-  }, [notes])
-
+  // ====== Click outside export menu ======
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
@@ -255,24 +335,52 @@ function App() {
     setEditContent('')
     setIsCreating(true)
     setShowExportMenu(false)
+    // 立即保存到 IndexedDB
+    saveNote(newNote)
     setTimeout(() => textareaRef.current?.focus(), 100)
   }, [])
 
-  const handleUpdateNote = useCallback(() => {
+  // ====== Auto-save to IndexedDB (debounced) ======
+  const triggerAutoSave = useCallback(async () => {
     if (!selectedNote) return
+
+    const updated: Note = {
+      ...selectedNote,
+      title: editTitle || '无标题',
+      content: editContent,
+      updatedAt: Date.now(),
+    }
+
     setNotes(prev =>
-      prev.map(note =>
-        note.id === selectedNote.id
-          ? { ...note, title: editTitle || '无标题', content: editContent, updatedAt: Date.now() }
-          : note
-      )
+      prev.map(note => note.id === selectedNote.id ? updated : note)
     )
-    setSelectedNote(prev => prev ? { ...prev, title: editTitle || '无标题', content: editContent, updatedAt: Date.now() } : null)
+    setSelectedNote(updated)
     setIsCreating(false)
+
+    await saveNote(updated)
   }, [selectedNote, editTitle, editContent])
 
-  const handleDeleteNote = useCallback((noteId: string, e: React.MouseEvent) => {
+  useEffect(() => {
+    if (!selectedNote || isCreating) return
+
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current)
+    }
+
+    saveTimerRef.current = setTimeout(() => {
+      triggerAutoSave()
+    }, 800)
+
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current)
+      }
+    }
+  }, [editTitle, editContent, selectedNote, isCreating, triggerAutoSave])
+
+  const handleDeleteNote = useCallback(async (noteId: string, e: React.MouseEvent) => {
     e.stopPropagation()
+    await deleteNote(noteId)
     setNotes(prev => prev.filter(note => note.id !== noteId))
     if (selectedNote?.id === noteId) {
       setSelectedNote(null)
@@ -286,12 +394,10 @@ function App() {
     const file = e.target.files?.[0]
     if (file && file.name.endsWith('.md')) {
       const reader = new FileReader()
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         const content = event.target?.result as string
-        // Try to extract title from first heading or use filename
         const titleMatch = content.match(/^#\s+(.+)$/m)
         const title = titleMatch ? titleMatch[1] : file.name.replace('.md', '')
-        // Remove the title heading from content if it exists
         const cleanContent = content.replace(/^#\s+.+\n+/, '')
 
         const newNote: Note = {
@@ -301,6 +407,7 @@ function App() {
           createdAt: Date.now(),
           updatedAt: Date.now(),
         }
+        await saveNote(newNote)
         setNotes(prev => [newNote, ...prev])
         setSelectedNote(newNote)
         setEditTitle(title)
@@ -389,12 +496,90 @@ ${editContent}
     setShowExportMenu(false)
   }, [editTitle, editContent])
 
-  useEffect(() => {
-    if (!selectedNote || isCreating) return
-    const timer = setTimeout(handleUpdateNote, 800)
-    return () => clearTimeout(timer)
-  }, [editTitle, editContent, handleUpdateNote, isCreating, selectedNote])
+  // ====== Floating Toolbar ======
+  const handleTextSelection = useCallback(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    setToolbarVisible(start !== end && start >= 0 && end > start)
+  }, [])
 
+  const handleFormatText = useCallback((before: string, after: string, block?: boolean) => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const selected = editContent.slice(start, end)
+
+    if (!selected) return
+
+    let replacement: string
+
+    if (block) {
+      // For block-level formatting (heading, quote, list)
+      const lines = selected.split('\n')
+      replacement = lines.map(line => before + line).join('\n')
+    } else if (before === '```\n' && after === '\n```') {
+      // Code block
+      replacement = before + selected + after
+    } else {
+      // Inline formatting
+      replacement = before + selected + after
+    }
+
+    const newContent = editContent.slice(0, start) + replacement + editContent.slice(end)
+    setEditContent(newContent)
+    setToolbarVisible(false)
+
+    // Restore focus and adjust selection
+    setTimeout(() => {
+      textarea.focus()
+      const newCursor = start + replacement.length
+      textarea.setSelectionRange(newCursor, newCursor)
+    }, 0)
+  }, [editContent])
+
+  // ====== AI: Markdown Fix ======
+  const handleFixMarkdown = useCallback(async () => {
+    if (!aiConfig?.enabled || !aiConfig.apiKey) {
+      alert('请先配置 AI API Key（点击右上角设置图标）')
+      return
+    }
+    setFixingMarkdown(true)
+    try {
+      const fixed = await chat(aiConfig, [
+        { role: 'system', content: MARKDOWN_FIX_SYSTEM },
+        { role: 'user', content: editContent },
+      ])
+      setEditContent(fixed)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '修正失败')
+    } finally {
+      setFixingMarkdown(false)
+    }
+  }, [aiConfig, editContent])
+
+  // ====== AI: Code Explain ======
+  const handleExplainSelection = useCallback(() => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const selected = editContent.slice(start, end).trim()
+    if (!selected) return
+
+    // Try to detect language from code block context
+    const beforeText = editContent.slice(0, start)
+    const langMatch = beforeText.match(/```(\w+)\s*\n[^`]*$/)
+    const lang = langMatch ? langMatch[1] : undefined
+
+    setExplainCode(selected)
+    setExplainLang(lang)
+  }, [editContent])
+
+  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
@@ -409,8 +594,37 @@ ${editContent}
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleCreateNote, isFocusMode])
 
+  // ====== Loading State ======
+  if (isLoading) {
+    return (
+      <div className="app-container" style={{ alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center', animation: 'fadeUp 0.5s ease' }}>
+          <div style={{ fontFamily: "'Noto Serif SC', serif", fontSize: '32px', fontWeight: 700, marginBottom: '12px', color: 'var(--ink)' }}>
+            墨砚
+          </div>
+          <div style={{ fontSize: '14px', color: 'var(--ink-faint)' }}>
+            正在唤醒...
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={`app-container ${isFocusMode ? 'focus-mode' : ''}`}>
+      {/* SW Update Banner */}
+      {swUpdateAvailable && (
+        <div className="sw-update-banner">
+          <span>新版本已就绪，刷新即可体验</span>
+          <button className="sw-update-btn" onClick={skipWaitingAndReload}>
+            立即刷新
+          </button>
+          <button className="sw-dismiss-btn" onClick={() => setSwUpdateAvailable(false)}>
+            <CloseIcon />
+          </button>
+        </div>
+      )}
+
       {/* Hidden file input for import */}
       <input
         type="file"
@@ -419,6 +633,7 @@ ${editContent}
         accept=".md,text/markdown"
         style={{ display: 'none' }}
       />
+
       {/* Header - hidden in focus mode */}
       {!isFocusMode && (
       <header className="app-header">
@@ -450,6 +665,13 @@ ${editContent}
         </div>
 
         <div className="header-right">
+          <button
+            className="action-btn"
+            onClick={() => setShowAISettings(true)}
+            title="AI 写作助手设置"
+          >
+            <SettingsIcon />
+          </button>
           <button
             className="action-btn theme-btn"
             onClick={cycleTheme}
@@ -547,6 +769,16 @@ ${editContent}
                 </button>
 
                 <div className="topbar-actions">
+                  {/* AI Markdown Fix */}
+                  <button
+                    className="action-btn"
+                    onClick={handleFixMarkdown}
+                    disabled={fixingMarkdown || !editContent.trim()}
+                    title={fixingMarkdown ? '正在修正...' : 'AI 修正 Markdown 格式'}
+                  >
+                    <WandIcon />
+                  </button>
+
                   {/* Focus mode */}
                   <button
                     className="action-btn"
@@ -585,6 +817,12 @@ ${editContent}
                 </div>
 
                 <div className="editor-status">
+                  {/* Network status */}
+                  <span className={`status-network ${online ? 'online' : 'offline'}`}>
+                    {online ? <CloudCheckIcon /> : <OfflineIcon />}
+                    <span className="status-text">{online ? '在线' : '离线'}</span>
+                  </span>
+                  <span className="status-divider">|</span>
                   <span className="status-dot" />
                   <span className="status-text">
                     {isCreating ? '新建中...' : '已保存'}
@@ -614,11 +852,13 @@ ${editContent}
               {/* Editor and Preview Side by Side */}
               <div className="split-view">
                 {/* Editor Pane */}
-                <div className="editor-pane">
+                <div className="editor-pane" style={{ position: 'relative' }}>
                   <textarea
                     ref={textareaRef}
                     value={editContent}
                     onChange={e => setEditContent(e.target.value)}
+                    onMouseUp={handleTextSelection}
+                    onKeyUp={handleTextSelection}
                     placeholder="在此书写...
 
 支持 Markdown 语法：
@@ -629,6 +869,19 @@ ${editContent}
 ```代码块```
 [链接](url)"
                     className="content-textarea"
+                  />
+                  <AIComplete
+                    textareaRef={textareaRef}
+                    config={aiConfig}
+                    editContent={editContent}
+                    editTitle={editTitle}
+                  />
+                  <FloatingToolbar
+                    textareaRef={textareaRef}
+                    onFormat={handleFormatText}
+                    onExplain={handleExplainSelection}
+                    visible={toolbarVisible}
+                    onClose={() => setToolbarVisible(false)}
                   />
                 </div>
 
@@ -697,6 +950,29 @@ ${editContent}
           )}
         </div>
       </div>
+
+      {/* AI Settings Panel */}
+      <AISettings
+        visible={showAISettings}
+        onClose={() => {
+          setShowAISettings(false)
+          // Reload config after close
+          getAIConfig().then(setAiConfig)
+        }}
+      />
+
+      {/* Code Explain Panel */}
+      {explainCode && (
+        <CodeExplain
+          code={explainCode}
+          language={explainLang}
+          config={aiConfig}
+          onClose={() => {
+            setExplainCode(null)
+            setExplainLang(undefined)
+          }}
+        />
+      )}
     </div>
   )
 }

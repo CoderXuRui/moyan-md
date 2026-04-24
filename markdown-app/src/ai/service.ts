@@ -1,15 +1,14 @@
 import type { AIConfig, ChatMessage, OnStreamChunk } from './types';
+import { getBuiltInAIConfig } from './env-config';
 
-const META_KEY = 'ai-config';
-
-export async function getAIConfig(): Promise<AIConfig | null> {
-  const { getMeta } = await import('../db');
-  return getMeta(META_KEY) as Promise<AIConfig | null>;
-}
-
-export async function saveAIConfig(config: AIConfig): Promise<void> {
-  const { setMeta } = await import('../db');
-  return setMeta(META_KEY, config);
+/**
+ * Get the active AI configuration.
+ *
+ * Configuration is read from environment variables at build time.
+ * Users cannot configure AI settings — this is developer-controlled.
+ */
+export function getAIConfig(): AIConfig | null {
+  return getBuiltInAIConfig();
 }
 
 function buildRequestBody(config: AIConfig, messages: ChatMessage[], stream: boolean) {

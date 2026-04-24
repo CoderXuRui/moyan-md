@@ -15,12 +15,9 @@ import {
 import { useNetworkStatus } from './hooks/useNetworkStatus'
 import { registerSW, skipWaitingAndReload } from './sw-register'
 import FloatingToolbar from './components/FloatingToolbar'
-import AISettings from './components/AISettings'
 import AIComplete from './components/AIComplete'
 import CodeExplain from './components/CodeExplain'
-import type { AIConfig } from './ai/types'
-import { getAIConfig } from './ai/service'
-import { chat } from './ai/service'
+import { getAIConfig, chat } from './ai/service'
 import { MARKDOWN_FIX_SYSTEM } from './ai/prompts'
 import './index.css'
 
@@ -163,13 +160,6 @@ const CloudCheckIcon = () => (
   </svg>
 )
 
-const SettingsIcon = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="3" />
-    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.67 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.67 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.67a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 21.33 9a1.65 1.65 0 0 0 1.51 1H23a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-  </svg>
-)
-
 const WandIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72" />
@@ -217,8 +207,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(true)
   const [swUpdateAvailable, setSwUpdateAvailable] = useState(false)
   const [toolbarVisible, setToolbarVisible] = useState(false)
-  const [aiConfig, setAiConfig] = useState<AIConfig | null>(null)
-  const [showAISettings, setShowAISettings] = useState(false)
+  const aiConfig = getAIConfig()
   const [explainCode, setExplainCode] = useState<string | null>(null)
   const [explainLang, setExplainLang] = useState<string | undefined>()
   const [fixingMarkdown, setFixingMarkdown] = useState(false)
@@ -244,10 +233,6 @@ function App() {
       // 3. 加载主题偏好
       const savedTheme = (await getMeta(THEME_META_KEY) as string) || 'light'
       setTheme(savedTheme)
-
-      // 4. 加载 AI 配置
-      const aiCfg = await getAIConfig()
-      if (aiCfg) setAiConfig(aiCfg)
 
       setIsLoading(false)
       isMountedRef.current = true
@@ -544,7 +529,7 @@ ${editContent}
   // ====== AI: Markdown Fix ======
   const handleFixMarkdown = useCallback(async () => {
     if (!aiConfig?.enabled || !aiConfig.apiKey) {
-      alert('请先配置 AI API Key（点击右上角设置图标）')
+      alert('AI 功能未启用，请联系开发者配置')
       return
     }
     setFixingMarkdown(true)
@@ -665,13 +650,6 @@ ${editContent}
         </div>
 
         <div className="header-right">
-          <button
-            className="action-btn"
-            onClick={() => setShowAISettings(true)}
-            title="AI 写作助手设置"
-          >
-            <SettingsIcon />
-          </button>
           <button
             className="action-btn theme-btn"
             onClick={cycleTheme}
@@ -950,16 +928,6 @@ ${editContent}
           )}
         </div>
       </div>
-
-      {/* AI Settings Panel */}
-      <AISettings
-        visible={showAISettings}
-        onClose={() => {
-          setShowAISettings(false)
-          // Reload config after close
-          getAIConfig().then(setAiConfig)
-        }}
-      />
 
       {/* Code Explain Panel */}
       {explainCode && (

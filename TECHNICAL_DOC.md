@@ -142,6 +142,17 @@ markdown-app/
 | 智能定位 | ✅ | 基于 mirror div 计算选区绝对位置，自动边界 clamp |
 | AI 解释 | ✅ | 选中代码后一键调用 AI 解释 |
 
+### 3.11 AI 写作助手
+
+| 功能 | 状态 | 说明 |
+|------|------|------|
+| 内置配置 | ✅ | 开发者通过 `.env.local` 提供 API Key，用户开箱即用 |
+| 用户自定义覆盖 | ✅ | 高级用户可自行配置其他提供商/模型 |
+| AI 续写 | ✅ | 输入停顿 1.5s 后触发，流式显示建议，Tab 接受 |
+| Markdown 修正 | ✅ | 一键修正格式错误 |
+| 代码解释 | ✅ | 选区代码块 → AI 中文解释，流式输出 |
+| 多提供商 | ✅ | OpenAI / DeepSeek / 智谱 GLM |
+
 ### 3.11 AI 写作增强
 
 | 功能 | 状态 | 说明 |
@@ -267,25 +278,59 @@ interface Note {
 
 ---
 
-## 七、AI 扩展功能（已实现）
+## 七、AI 写作助手（已实现）
 
-### 7.1 写作增强
+### 7.1 内置配置（开箱即用）
+
+**设计理念**：作为开发者，你通过环境变量提供 API Key，终端用户无需任何配置即可享受 AI 功能。
+
+**环境变量**（`.env.local`，gitignored）：
+
+| 变量 | 必填 | 默认值 |
+|------|------|--------|
+| `VITE_AI_PROVIDER` | 否 | `deepseek` |
+| `VITE_AI_API_KEY` | **是** | — |
+| `VITE_AI_BASE_URL` | 否 | 提供商默认 |
+| `VITE_AI_MODEL` | 否 | 提供商默认 |
+| `VITE_AI_ENABLED` | 否 | `true`（只要 key 存在） |
+
+**配置优先级**：
+
+```
+用户自定义配置 (IndexedDB) > 内置环境变量配置 > null
+```
+
+- 如果环境变量提供了 `VITE_AI_API_KEY`，AI 功能默认启用，用户打开即用
+- 用户可以在设置面板中添加自己的配置来覆盖内置配置
+- 恢复内置配置只需清除自定义覆盖即可
+
+### 7.2 写作增强功能
 
 | 功能 | 状态 | 技术方案 |
 |------|------|----------|
-| AI 自动补全 | ✅ | `AIComplete.tsx` + `chatStream()` 流式返回，debounce 1.5s 触发 |
+| AI 自动补全 | ✅ | `AIComplete.tsx` + `chatStream()` 流式返回，debounce 1.5s 触发，Tab 接受 |
 | Markdown 语法修正 | ✅ | `handleFixMarkdown()` + `MARKDOWN_FIX_SYSTEM` prompt |
 | 代码块解释 | ✅ | `CodeExplain.tsx` + `buildCodeExplainPrompt()`，支持语言自动检测 |
+| 浮动工具栏 | ✅ | `FloatingToolbar.tsx`，选中文本后显示 11 种 Markdown 格式化选项 |
 
-### 7.2 多 LLM 提供商支持
+### 7.3 多 LLM 提供商支持
 
 | 提供商 | 默认模型 | 配置项 |
 |--------|----------|--------|
 | OpenAI | `gpt-4o-mini` | API Key + Base URL |
 | DeepSeek | `deepseek-chat` | API Key + Base URL |
 | 智谱 GLM | `glm-4-flash` | API Key + Base URL |
+| 硅基流动 | `deepseek-ai/DeepSeek-V3` | API Key + Base URL |
 
-配置持久化存储在 IndexedDB `meta` store 中，全局共享。
+### 7.4 文件结构
+
+```
+src/ai/
+├── types.ts       # AIConfig / ChatMessage / StreamChunk 类型定义
+├── env-config.ts  # 从 import.meta.env 读取内置配置
+├── service.ts     # chatStream() / chat() 请求封装 + 配置读写
+└── prompts.ts     # Prompt 模板（续写 / 修正 / 代码解释）
+```
 
 ---
 
@@ -303,4 +348,4 @@ interface Note {
 
 > 文档更新时间：2026-04-24
 > 项目分支：main
-> 最近提交：AI 写作增强 + 浮动工具栏 + IndexedDB + PWA 离线化
+> 最近提交：AI 内置配置 + 写作增强 + 浮动工具栏 + IndexedDB + PWA 离线化

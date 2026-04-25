@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import type { AIConfig } from '../ai/types'
 import { chatStream } from '../ai/service'
 import { buildCodeExplainPrompt, CODE_EXPLAIN_SYSTEM } from '../ai/prompts'
@@ -13,12 +13,19 @@ interface Props {
 export default function CodeExplain({ code, language, config, onClose }: Props) {
   const [explanation, setExplanation] = useState('')
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const isReceivingRef = useRef(false)
 
   const fetchExplanation = useCallback(async () => {
     if (!config?.enabled || !config.apiKey) {
       setError('请先配置 AI API Key（点击右上角设置图标）')
       return
     }
+
+    setLoading(true)
+    setExplanation('')
+    setError('')
+    isReceivingRef.current = false
 
     let fullText = ''
 
@@ -31,13 +38,21 @@ export default function CodeExplain({ code, language, config, onClose }: Props) 
         ],
         (chunk) => {
           if (!chunk.done) {
-            fullText += chunk.content
-            setExplanation(fullText)
+            if (chunk.content) {
+              isReceivingRef.current = true
+              fullText += chunk.content
+              setExplanation(fullText)
+            }
+          } else {
+            setLoading(false)
+            isReceivingRef.current = false
           }
         }
       )
     } catch (err) {
       setError(err instanceof Error ? err.message : '请求失败')
+      setLoading(false)
+      isReceivingRef.current = false
     }
   }, [config, code, language])
 
@@ -56,6 +71,7 @@ export default function CodeExplain({ code, language, config, onClose }: Props) 
               <line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
             AI 代码解释
+            {loading && <span className="explain-streaming-dot" />}
           </h3>
           <button className="explain-close" onClick={onClose}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -73,11 +89,13 @@ export default function CodeExplain({ code, language, config, onClose }: Props) 
                 <pre><code>{code}</code></pre>
               </div>
               <div className="explain-content">
-                {explanation || (
+                {!explanation ? (
                   <div className="explain-loading">
                     <span className="explain-pulse-dot" />
-                    <span>正在分析代码...</span>
+                    <span>{loading ? '正在分析代码...' : '等待响应...'}</span>
                   </div>
+                ) : (
+                  <div className="explain-result">{explanation}</div>
                 )}
               </div>
             </>

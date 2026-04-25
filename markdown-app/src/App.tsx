@@ -16,9 +16,7 @@ import { useNetworkStatus } from './hooks/useNetworkStatus'
 import { registerSW, skipWaitingAndReload } from './sw-register'
 import FloatingToolbar from './components/FloatingToolbar'
 import AIComplete from './components/AIComplete'
-import CodeExplain from './components/CodeExplain'
 import { getAIConfig, chat } from './ai/service'
-import { MARKDOWN_FIX_SYSTEM } from './ai/prompts'
 import './index.css'
 
 const THEME_META_KEY = 'theme'
@@ -208,9 +206,7 @@ function App() {
   const [swUpdateAvailable, setSwUpdateAvailable] = useState(false)
   const [toolbarVisible, setToolbarVisible] = useState(false)
   const aiConfig = getAIConfig()
-  const [explainCode, setExplainCode] = useState<string | null>(null)
-  const [explainLang, setExplainLang] = useState<string | undefined>()
-  const [fixingMarkdown, setFixingMarkdown] = useState(false)
+  const [summarizing, setSummarizing] = useState(false)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const exportMenuRef = useRef<HTMLDivElement>(null)
@@ -526,43 +522,38 @@ ${editContent}
     }, 0)
   }, [editContent])
 
-  // ====== AI: Markdown Fix ======
-  const handleFixMarkdown = useCallback(async () => {
+  // ====== AI: Summarize ======
+  const handleSummarize = useCallback(async () => {
     if (!aiConfig?.enabled || !aiConfig.apiKey) {
       alert('AI 功能未启用，请联系开发者配置')
       return
     }
-    setFixingMarkdown(true)
+    if (!editContent.trim()) {
+      alert('请先输入一些内容')
+      return
+    }
+    setSummarizing(true)
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error('请求超时（超过15秒），请检查网络或换用更快的模型')), 15000)
+    })
     try {
-      const fixed = await chat(aiConfig, [
-        { role: 'system', content: MARKDOWN_FIX_SYSTEM },
-        { role: 'user', content: editContent },
-      ])
-      setEditContent(fixed)
+      const summary = await Promise.race([
+        chat(aiConfig, [
+          { role: 'system', content: '你是一位专业的中文写作助手。请为用户提供的文本进行全面、准确的总结。规则：1. 总结应覆盖文本的所有主要内容点 2. 保留原文的核心信息、论点和关键细节 3. 使用中文输出，语言流畅 4. 只输出总结内容，不要有任何前缀或解释' },
+          { role: 'user', content: editContent },
+        ]),
+        timeoutPromise
+      ]) as string
+      const summaryBlock = `> 【AI 总结】\n> ${summary}\n\n---\n\n`
+      setEditContent(summaryBlock + editContent)
     } catch (err) {
-      alert(err instanceof Error ? err.message : '修正失败')
+      alert(err instanceof Error ? err.message : '总结失败')
     } finally {
-      setFixingMarkdown(false)
+      clearTimeout(timeoutId)
+      setSummarizing(false)
     }
   }, [aiConfig, editContent])
-
-  // ====== AI: Code Explain ======
-  const handleExplainSelection = useCallback(() => {
-    const textarea = textareaRef.current
-    if (!textarea) return
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-    const selected = editContent.slice(start, end).trim()
-    if (!selected) return
-
-    // Try to detect language from code block context
-    const beforeText = editContent.slice(0, start)
-    const langMatch = beforeText.match(/```(\w+)\s*\n[^`]*$/)
-    const lang = langMatch ? langMatch[1] : undefined
-
-    setExplainCode(selected)
-    setExplainLang(lang)
-  }, [editContent])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -646,10 +637,33 @@ ${editContent}
               onChange={e => setSearchQuery(e.target.value)}
               className="search-input"
             />
+            {searchQuery && (
+              <button
+                className="search-clear"
+                onClick={() => setSearchQuery('')}
+                title="清除搜索"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
 
         <div className="header-right">
+          <button
+            className="action-btn"
+            onClick={() => triggerAutoSave()}
+            disabled={!selectedNote || isCreating}
+            title="保存笔记"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+              <polyline points="17 21 17 13 7 13 7 21" />
+              <polyline points="7 3 7 8 15 8" />
+            </svg>
+          </button>
           <button
             className="action-btn theme-btn"
             onClick={cycleTheme}
@@ -750,9 +764,9 @@ ${editContent}
                   {/* AI Markdown Fix */}
                   <button
                     className="action-btn"
-                    onClick={handleFixMarkdown}
-                    disabled={fixingMarkdown || !editContent.trim()}
-                    title={fixingMarkdown ? '正在修正...' : 'AI 修正 Markdown 格式'}
+                    onClick={handleSummarize}
+                    disabled={summarizing || !editContent.trim()}
+                    title={summarizing ? '正在总结...' : 'AI 总结全文'}
                   >
                     <WandIcon />
                   </button>
@@ -857,7 +871,6 @@ ${editContent}
                   <FloatingToolbar
                     textareaRef={textareaRef}
                     onFormat={handleFormatText}
-                    onExplain={handleExplainSelection}
                     visible={toolbarVisible}
                     onClose={() => setToolbarVisible(false)}
                   />
@@ -928,19 +941,6 @@ ${editContent}
           )}
         </div>
       </div>
-
-      {/* Code Explain Panel */}
-      {explainCode && (
-        <CodeExplain
-          code={explainCode}
-          language={explainLang}
-          config={aiConfig}
-          onClose={() => {
-            setExplainCode(null)
-            setExplainLang(undefined)
-          }}
-        />
-      )}
     </div>
   )
 }

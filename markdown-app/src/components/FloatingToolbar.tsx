@@ -99,14 +99,6 @@ const LinkIcon = () => (
   </svg>
 )
 
-const AIIcon = () => (
-  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 2a3 3 0 0 0-3 3v14a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-    <path d="M19 10h2a2 2 0 0 1 0 4h-2" />
-    <path d="M3 10h2a2 2 0 0 1 0 4H3" />
-  </svg>
-)
-
 const ACTIONS: ToolbarAction[] = [
   { key: 'bold', label: '加粗', icon: <BoldIcon />, wrap: ['**', '**'] },
   { key: 'italic', label: '斜体', icon: <ItalicIcon />, wrap: ['*', '*'] },
@@ -124,12 +116,11 @@ const ACTIONS: ToolbarAction[] = [
 interface Props {
   textareaRef: React.RefObject<HTMLTextAreaElement | null>
   onFormat: (before: string, after: string, block?: boolean) => void
-  onExplain?: () => void
   visible: boolean
   onClose: () => void
 }
 
-export default function FloatingToolbar({ textareaRef, onFormat, onExplain, visible, onClose }: Props) {
+export default function FloatingToolbar({ textareaRef, onFormat, visible, onClose }: Props) {
   const toolbarRef = useRef<HTMLDivElement>(null)
   const posRef = useRef({ top: 0, left: 0 })
 
@@ -233,18 +224,6 @@ export default function FloatingToolbar({ textareaRef, onFormat, onExplain, visi
           {action.icon}
         </button>
       ))}
-      {onExplain && (
-        <button
-          className="toolbar-btn toolbar-btn--ai"
-          title="AI 解释选中的代码"
-          onClick={() => {
-            onExplain()
-            onClose()
-          }}
-        >
-          <AIIcon />
-        </button>
-      )}
     </div>
   )
 }

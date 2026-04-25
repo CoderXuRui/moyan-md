@@ -32,16 +32,16 @@
 
 /* Sepia/Eye-care Theme */
 [data-theme="sepia"] {
-  --ink: #5c4a3a;
-  --ink-light: #7a6a5a;
-  --ink-faint: #9a8a7a;
-  --paper: #f5efe6;
-  --paper-dark: #e8dfd0;
-  --accent: #8b6914;
-  --border: #d4c8b8;
-  --shadow: rgba(92, 74, 58, 0.08);
-  --editor-bg: #faf6ee;
-  --preview-bg: #f5efe6;
+  --ink: #2d4a3e;
+  --ink-light: #4a6b5a;
+  --ink-faint: #7a9a8a;
+  --paper: #e8f5e9;
+  --paper-dark: #c8e6c9;
+  --accent: #4caf50;
+  --border: #a5d6a7;
+  --shadow: rgba(45, 74, 62, 0.08);
+  --editor-bg: #f1f8e9;
+  --preview-bg: #e8f5e9;
 }
 
 * {
@@ -172,6 +172,25 @@ body {
 .search-box svg {
   color: var(--ink-faint);
   flex-shrink: 0;
+}
+.search-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: var(--paper-dark);
+  border: none;
+  border-radius: 50%;
+  color: var(--ink-faint);
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+  transition: all 0.15s;
+}
+.search-clear:hover {
+  background: var(--border);
+  color: var(--ink);
 }
 
 .search-input {
@@ -473,6 +492,10 @@ body {
 .action-btn:hover {
   background: var(--paper-dark);
   color: var(--ink);
+}
+.action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 /* Export Menu */
@@ -1390,6 +1413,7 @@ body {
   font-size: 15px;
   line-height: 1.8;
   color: var(--ink);
+  min-height: 120px;
 }
 
 .explain-content p {
@@ -1424,6 +1448,17 @@ body {
   border-radius: 8px;
   color: var(--accent);
   font-size: 14px;
+}
+
+.explain-streaming-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: var(--accent);
+  border-radius: 50%;
+  animation: pulse 1s infinite;
+  margin-left: 6px;
+  vertical-align: middle;
 }
 
 /* ============================================

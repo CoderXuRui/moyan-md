@@ -64,7 +64,7 @@ export async function migrateFromLocalStorage(): Promise<boolean> {
 
     for (const note of notes) {
       // 为旧数据添加 categoryId 字段
-      await promisifyRequest(store.put({ categoryId: null, ...note }))
+      await promisifyRequest(store.put({ ...note, categoryId: note.categoryId ?? null }))
     }
 
     await promisifyRequest(tx as unknown as IDBRequest)
@@ -104,7 +104,7 @@ export async function getAllNotes(): Promise<Note[]> {
     request.onsuccess = () => {
       const cursor = request.result
       if (cursor) {
-        notes.push({ categoryId: null, ...cursor.value })
+        notes.push({ ...cursor.value, categoryId: cursor.value.categoryId ?? null })
         cursor.continue()
       } else {
         db.close()

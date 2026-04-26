@@ -18,6 +18,10 @@ import {
 import { useNetworkStatus } from './hooks/useNetworkStatus'
 import { registerSW, skipWaitingAndReload } from './sw-register'
 import FloatingToolbar from './components/FloatingToolbar'
+
+// Constants
+const AI_SUMMARY_MARKER = '🤖 **AI 总结**'
+const AI_SUMMARY_DISPLAY = '🤖 AI 总结'
 import CategoryManager from './components/CategoryManager'
 import WelcomeGuide from './components/WelcomeGuide'
 import SummaryDialog from './components/SummaryDialog'
@@ -472,17 +476,6 @@ function App() {
     ))
   }, [selectedCategoryId])
 
-  const handleMoveNote = useCallback(async (noteId: string, categoryId: string | null) => {
-    const note = notes.find(n => n.id === noteId)
-    if (note) {
-      const updatedNote = { ...note, categoryId, updatedAt: Date.now() }
-      await saveNote(updatedNote)
-      setNotes(prev => prev.map(n => n.id === noteId ? updatedNote : n))
-      if (selectedNote?.id === noteId) {
-        setSelectedNote(updatedNote)
-      }
-    }
-  }, [notes, selectedNote])
 
   // ====== Note Operations ======
   const handleSelectNote = useCallback((note: Note) => {
@@ -578,7 +571,7 @@ function App() {
           id: uuidv4(),
           title,
           content: cleanContent,
-          categoryId: selectedCategoryId,
+          categoryId: selectedCategoryId ?? null,
           createdAt: Date.now(),
           updatedAt: Date.now(),
         }
@@ -726,14 +719,12 @@ ${editContent}
 
     const textarea = textareaRef.current
     let textToSummarize = editContent
-    let isSelection = false
 
     if (textarea) {
       const start = textarea.selectionStart
       const end = textarea.selectionEnd
       if (start !== end && end - start > 10) {
         textToSummarize = editContent.slice(start, end)
-        isSelection = true
       }
     }
 
@@ -769,7 +760,7 @@ ${editContent}
 
   // 检测是否已有AI总结
   const hasExistingSummary = useMemo(() => {
-    return editContent.includes('🤖 **AI 总结**')
+    return editContent.includes(AI_SUMMARY_MARKER)
   }, [editContent])
 
   const handleConfirmSummary = useCallback((newContent: string, replaceExisting: boolean) => {
@@ -1209,23 +1200,13 @@ ${editContent}
                           </SyntaxHighlighter>
                         )
                       },
-                      blockquote({ children, ...props }) {
+                      blockquote: ({ children, ...props }: any) => {
                         const isAISummary = Array.isArray(children) && children.some(c =>
-                          typeof c === 'string' && c.includes('🤖 AI 总结')
+                          typeof c === 'string' && c.includes(AI_SUMMARY_DISPLAY)
                         )
                         if (isAISummary) {
                           return (
-                            <div
-                              style={{
-                                background: 'rgba(59, 130, 246, 0.1)',
-                                border: '1px solid #3b82f6',
-                                borderRadius: '8px',
-                                padding: '16px',
-                                margin: '16px 0',
-                                borderLeft: 'none'
-                              }}
-                              {...props}
-                            >
+                            <div className="ai-summary-block" {...props}>
                               {children}
                             </div>
                           )

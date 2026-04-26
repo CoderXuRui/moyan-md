@@ -7,11 +7,12 @@
  * - 批量操作支持
  */
 
-import type { Note } from '../types'
+import type { Note, Category } from '../types'
 
 const DB_NAME = 'moyan-db'
-const DB_VERSION = 1
+const DB_VERSION = 2
 const STORE_NOTES = 'notes'
+const STORE_CATEGORIES = 'categories'
 const STORE_META = 'meta'
 const OLD_LS_KEY = 'markdown-notes-v3'
 
@@ -33,6 +34,10 @@ function openDB(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(STORE_NOTES)) {
         const store = db.createObjectStore(STORE_NOTES, { keyPath: 'id' })
         store.createIndex('updatedAt', 'updatedAt', { unique: false })
+      }
+
+      if (!db.objectStoreNames.contains(STORE_CATEGORIES)) {
+        db.createObjectStore(STORE_CATEGORIES, { keyPath: 'id' })
       }
 
       if (!db.objectStoreNames.contains(STORE_META)) {
@@ -58,7 +63,8 @@ export async function migrateFromLocalStorage(): Promise<boolean> {
     const store = tx.objectStore(STORE_NOTES)
 
     for (const note of notes) {
-      await promisifyRequest(store.put(note))
+      // 为旧数据添加 categoryId 字段
+      await promisifyRequest(store.put({ categoryId: null, ...note }))
     }
 
     await promisifyRequest(tx as unknown as IDBRequest)
@@ -81,9 +87,9 @@ function promisifyRequest<T>(request: IDBRequest<T>): Promise<T> {
   })
 }
 
-// ===========================
+// ==========================
 // Notes CRUD
-// ===========================
+// ==========================
 
 export async function getAllNotes(): Promise<Note[]> {
   const db = await openDB()
@@ -98,7 +104,7 @@ export async function getAllNotes(): Promise<Note[]> {
     request.onsuccess = () => {
       const cursor = request.result
       if (cursor) {
-        notes.push(cursor.value)
+        notes.push({ categoryId: null, ...cursor.value })
         cursor.continue()
       } else {
         db.close()
@@ -141,9 +147,61 @@ export async function deleteNote(noteId: string): Promise<void> {
   db.close()
 }
 
-// ===========================
+// ==========================
+// Categories CRUD
+// ==========================
+
+export async function getAllCategories(): Promise<Category[]> {
+  const db = await openDB()
+  const tx = db.transaction(STORE_CATEGORIES, 'readonly')
+  const store = tx.objectStore(STORE_CATEGORIES)
+  const request = store.getAll()
+
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => {
+      const categories = request.result.sort((a, b) => a.createdAt - b.createdAt)
+      db.close()
+      resolve(categories)
+    }
+    request.onerror = () => {
+      db.close()
+      reject(request.error)
+    }
+  })
+}
+
+export async function saveCategory(category: Category): Promise<void> {
+  const db = await openDB()
+  const tx = db.transaction(STORE_CATEGORIES, 'readwrite')
+  const store = tx.objectStore(STORE_CATEGORIES)
+  await promisifyRequest(store.put(category))
+  db.close()
+}
+
+export async function deleteCategory(categoryId: string): Promise<void> {
+  const db = await openDB()
+  const tx = db.transaction([STORE_CATEGORIES, STORE_NOTES], 'readwrite')
+
+  // 1. 删除分类
+  const categoryStore = tx.objectStore(STORE_CATEGORIES)
+  await promisifyRequest(categoryStore.delete(categoryId))
+
+  // 2. 将该分类下的笔记移到未分类
+  const noteStore = tx.objectStore(STORE_NOTES)
+  const notes = await getAllNotes()
+  for (const note of notes) {
+    if (note.categoryId === categoryId) {
+      noteStore.put({ ...note, categoryId: null })
+    }
+  }
+
+  await promisifyRequest(tx as unknown as IDBRequest)
+  db.close()
+}
+
+// ==========================
 // Meta / Preferences
-// ===========================
+// ==========================
 
 export async function getMeta(key: string): Promise<unknown> {
   const db = await openDB()
@@ -162,9 +220,9 @@ export async function setMeta(key: string, value: unknown): Promise<void> {
   db.close()
 }
 
-// ===========================
+// ==========================
 // Export
-// ===========================
+// ==========================
 
 export async function exportAllNotes(): Promise<Note[]> {
   return getAllNotes()

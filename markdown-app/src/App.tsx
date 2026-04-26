@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { v4 as uuidv4 } from 'uuid'
-import type { Note } from './types'
+import type { Note, Category } from './types'
 import {
   getAllNotes,
   saveNote,
@@ -11,15 +11,111 @@ import {
   migrateFromLocalStorage,
   getMeta,
   setMeta,
+  getAllCategories,
+  saveCategory,
+  deleteCategory,
 } from './db'
 import { useNetworkStatus } from './hooks/useNetworkStatus'
 import { registerSW, skipWaitingAndReload } from './sw-register'
 import FloatingToolbar from './components/FloatingToolbar'
-import AIComplete from './components/AIComplete'
+import CategoryManager from './components/CategoryManager'
+import WelcomeGuide from './components/WelcomeGuide'
+import SummaryDialog from './components/SummaryDialog'
+import Toast from './components/Toast'
 import { getAIConfig, chat } from './ai/service'
 import './index.css'
 
 const THEME_META_KEY = 'theme'
+const FIRST_USE_KEY = 'firstUse'
+
+const MARKDOWN_TUTORIAL = `# Markdown 使用指南
+
+欢迎使用墨砚笔记！这篇文章将教会你如何使用 Markdown 进行写作。
+
+## 什么是 Markdown？
+
+Markdown 是一种轻量级标记语言，让你使用纯文本格式编写文档，同时保持良好的可读性。
+
+## 常用语法
+
+### 标题
+
+使用 \`#\` 来创建标题，\`#\` 的数量决定了标题的级别：
+
+\`\`\`markdown
+# 一级标题
+## 二级标题
+### 三级标题
+#### 四级标题
+\`\`\`
+
+### 文本样式
+
+你可以轻松地为文本添加样式：
+
+- **粗体**：使用 \`**文本**\`
+- *斜体*：使用 \`*文本*\`
+- ~~删除线~~：使用 \`~~文本~~\`
+
+### 列表
+
+无序列表使用 \`-\`、\`+\` 或 \`*\`：
+
+- 苹果
+- 香蕉
+- 橙子
+
+有序列表使用数字：
+
+1. 第一项
+2. 第二项
+3. 第三项
+
+### 链接和图片
+
+链接格式：\`[链接文字](链接地址)\`
+
+访问 [GitHub](https://github.com) 了解更多。
+
+图片格式：\`![图片描述](图片地址)\`
+
+### 引用
+
+使用 \`>\` 创建引用块：
+
+> 这是一段引用文字
+> 可以包含多行
+
+### 代码
+
+行内代码使用反引号：\`code\`
+
+代码块使用三个反引号：
+
+\`\`\`javascript
+function hello() {
+  console.log('Hello, world!')
+}
+\`\`\`
+
+### 分隔线
+
+使用三个或更多的 \`-\`、\`*\` 或 \`_\`：
+
+---
+
+### 表格
+
+| 姓名 | 年龄 | 职业 |
+|------|------|------|
+| 张三 | 28 | 设计师 |
+| 李四 | 32 | 工程师 |
+
+## 开始写作
+
+现在你已经掌握了 Markdown 的基本语法，开始创作你的第一篇笔记吧！
+
+提示：选中文字后可以使用浮动工具栏快速添加格式。`
 
 const formatTime = (timestamp: number): string => {
   const now = Date.now()
@@ -160,7 +256,7 @@ const CloudCheckIcon = () => (
 
 const WandIcon = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72" />
+    <path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.21 1.21 0 0 0 1.72 0L21.64 5.36a1.21 1.21 0 0 0 0-1.72" />
     <path d="m14 7 3 3" />
     <path d="M5 6v4" />
     <path d="M19 14v4" />
@@ -193,7 +289,9 @@ const syntaxStyle = {
 function App() {
   // ====== State ======
   const [notes, setNotes] = useState<Note[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
   const [selectedNote, setSelectedNote] = useState<Note | null>(null)
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null | undefined>(undefined)
   const [searchQuery, setSearchQuery] = useState('')
   const [editTitle, setEditTitle] = useState('')
   const [editContent, setEditContent] = useState('')
@@ -205,28 +303,68 @@ function App() {
   const [isLoading, setIsLoading] = useState(true)
   const [swUpdateAvailable, setSwUpdateAvailable] = useState(false)
   const [toolbarVisible, setToolbarVisible] = useState(false)
+  const [showWelcomeGuide, setShowWelcomeGuide] = useState(false)
+  const [showSummaryDialog, setShowSummaryDialog] = useState(false)
+  const [summaryResult, setSummaryResult] = useState('')
+  const [toast, setToast] = useState<{ message: string; type: 'info' | 'error' | 'success' } | null>(null)
   const aiConfig = getAIConfig()
   const [summarizing, setSummarizing] = useState(false)
+  const [generatingTitle, setGeneratingTitle] = useState(false)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const exportMenuRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isMountedRef = useRef(false)
+  const initRef = useRef(false)
 
   const { online } = useNetworkStatus()
 
   // ====== Init: load from IndexedDB ======
   useEffect(() => {
     const init = async () => {
+      // 防止重复初始化
+      if (initRef.current) return
+      initRef.current = true
+
       // 1. 尝试迁移旧数据
       await migrateFromLocalStorage()
 
-      // 2. 加载笔记列表
-      const loaded = await getAllNotes()
-      setNotes(loaded)
+      // 2. 加载笔记列表和分类
+      let loadedNotes = await getAllNotes()
+      const loadedCategories = await getAllCategories()
 
-      // 3. 加载主题偏好
+      // 3. 检查是否是首次使用
+      const isFirstUse = await getMeta(FIRST_USE_KEY)
+      if (isFirstUse === undefined || isFirstUse === null) {
+        // 检查是否已存在教程笔记
+        const hasTutorial = loadedNotes.some(note => note.title === 'Markdown 使用指南')
+
+        if (!hasTutorial) {
+          // 创建教程笔记
+          const tutorialNote: Note = {
+            id: uuidv4(),
+            title: 'Markdown 使用指南',
+            content: MARKDOWN_TUTORIAL,
+            categoryId: null,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          }
+          await saveNote(tutorialNote)
+          loadedNotes = [tutorialNote, ...loadedNotes]
+        }
+
+        // 标记已使用
+        await setMeta(FIRST_USE_KEY, false)
+
+        // 显示引导
+        setShowWelcomeGuide(true)
+      }
+
+      setNotes(loadedNotes)
+      setCategories(loadedCategories)
+
+      // 4. 加载主题偏好
       const savedTheme = (await getMeta(THEME_META_KEY) as string) || 'light'
       setTheme(savedTheme)
 
@@ -282,16 +420,71 @@ function App() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  // Filter notes by category and search
   const filteredNotes = useMemo(() => {
-    if (!searchQuery.trim()) return notes
-    const query = searchQuery.toLowerCase()
-    return notes.filter(
-      note =>
-        note.title.toLowerCase().includes(query) ||
-        note.content.toLowerCase().includes(query)
-    )
-  }, [notes, searchQuery])
+    let result = notes
 
+    // 分类筛选
+    if (selectedCategoryId === undefined) {
+      // 未选择：显示所有笔记
+    } else if (selectedCategoryId === null) {
+      // 选中"未分类"
+      result = result.filter(note => !note.categoryId)
+    } else {
+      // 选中特定分类
+      result = result.filter(note => note.categoryId === selectedCategoryId)
+    }
+
+    // 搜索筛选
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      result = result.filter(
+        note =>
+          note.title.toLowerCase().includes(query) ||
+          note.content.toLowerCase().includes(query)
+      )
+    }
+
+    return result
+  }, [notes, selectedCategoryId, searchQuery])
+
+  // ====== Category Operations ======
+  const handleAddCategory = useCallback(async (name: string) => {
+    const newCategory: Category = {
+      id: uuidv4(),
+      name,
+      createdAt: Date.now(),
+    }
+    await saveCategory(newCategory)
+    setCategories(prev => [...prev, newCategory])
+  }, [])
+
+  const handleDeleteCategory = useCallback(async (categoryId: string) => {
+    await deleteCategory(categoryId)
+    setCategories(prev => prev.filter(c => c.id !== categoryId))
+    // 如果选中的是被删除的分类，回到"显示所有"
+    if (selectedCategoryId === categoryId) {
+      setSelectedCategoryId(undefined)
+    }
+    // 将笔记移到未分类
+    setNotes(prev => prev.map(n =>
+      n.categoryId === categoryId ? { ...n, categoryId: null } : n
+    ))
+  }, [selectedCategoryId])
+
+  const handleMoveNote = useCallback(async (noteId: string, categoryId: string | null) => {
+    const note = notes.find(n => n.id === noteId)
+    if (note) {
+      const updatedNote = { ...note, categoryId, updatedAt: Date.now() }
+      await saveNote(updatedNote)
+      setNotes(prev => prev.map(n => n.id === noteId ? updatedNote : n))
+      if (selectedNote?.id === noteId) {
+        setSelectedNote(updatedNote)
+      }
+    }
+  }, [notes, selectedNote])
+
+  // ====== Note Operations ======
   const handleSelectNote = useCallback((note: Note) => {
     setSelectedNote(note)
     setEditTitle(note.title)
@@ -302,24 +495,24 @@ function App() {
     setTimeout(() => textareaRef.current?.focus(), 100)
   }, [])
 
-  const handleCreateNote = useCallback(() => {
+  const handleCreateNote = useCallback(async () => {
     const newNote: Note = {
       id: uuidv4(),
       title: '',
       content: '',
+      categoryId: selectedCategoryId === undefined ? null : selectedCategoryId, // 新建在当前分类下
       createdAt: Date.now(),
       updatedAt: Date.now(),
     }
+    await saveNote(newNote)
     setNotes(prev => [newNote, ...prev])
     setSelectedNote(newNote)
     setEditTitle('')
     setEditContent('')
     setIsCreating(true)
     setShowExportMenu(false)
-    // 立即保存到 IndexedDB
-    saveNote(newNote)
     setTimeout(() => textareaRef.current?.focus(), 100)
-  }, [])
+  }, [selectedCategoryId])
 
   // ====== Auto-save to IndexedDB (debounced) ======
   const triggerAutoSave = useCallback(async () => {
@@ -385,6 +578,7 @@ function App() {
           id: uuidv4(),
           title,
           content: cleanContent,
+          categoryId: selectedCategoryId,
           createdAt: Date.now(),
           updatedAt: Date.now(),
         }
@@ -402,7 +596,8 @@ function App() {
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
-  }, [])
+  }, [selectedCategoryId])
+
 
   // Export functions
   const exportMarkdown = useCallback(() => {
@@ -525,33 +720,99 @@ ${editContent}
   // ====== AI: Summarize ======
   const handleSummarize = useCallback(async () => {
     if (!aiConfig?.enabled || !aiConfig.apiKey) {
-      alert('AI 功能未启用，请联系开发者配置')
+      setToast({ message: 'AI 功能未启用，请联系开发者配置', type: 'error' })
       return
     }
-    if (!editContent.trim()) {
-      alert('请先输入一些内容')
+
+    const textarea = textareaRef.current
+    let textToSummarize = editContent
+    let isSelection = false
+
+    if (textarea) {
+      const start = textarea.selectionStart
+      const end = textarea.selectionEnd
+      if (start !== end && end - start > 10) {
+        textToSummarize = editContent.slice(start, end)
+        isSelection = true
+      }
+    }
+
+    if (!textToSummarize.trim()) {
+      setToast({ message: '请先输入一些内容', type: 'error' })
       return
     }
+
     setSummarizing(true)
     let timeoutId: ReturnType<typeof setTimeout> | undefined
     const timeoutPromise = new Promise((_, reject) => {
       timeoutId = setTimeout(() => reject(new Error('请求超时（超过15秒），请检查网络或换用更快的模型')), 15000)
     })
+
     try {
       const summary = await Promise.race([
         chat(aiConfig, [
           { role: 'system', content: '你是一位专业的中文写作助手。请为用户提供的文本进行全面、准确的总结。规则：1. 总结应覆盖文本的所有主要内容点 2. 保留原文的核心信息、论点和关键细节 3. 使用中文输出，语言流畅 4. 只输出总结内容，不要有任何前缀或解释' },
+          { role: 'user', content: textToSummarize },
+        ]),
+        timeoutPromise
+      ]) as string
+
+      setSummaryResult(summary)
+      setShowSummaryDialog(true)
+    } catch (err) {
+      setToast({ message: err instanceof Error ? err.message : '总结失败', type: 'error' })
+    } finally {
+      clearTimeout(timeoutId)
+      setSummarizing(false)
+    }
+  }, [aiConfig, editContent])
+
+  // 检测是否已有AI总结
+  const hasExistingSummary = useMemo(() => {
+    return editContent.includes('🤖 **AI 总结**')
+  }, [editContent])
+
+  const handleConfirmSummary = useCallback((newContent: string, replaceExisting: boolean) => {
+    setEditContent(newContent)
+    setShowSummaryDialog(false)
+    setSummaryResult('')
+    setToast({ message: replaceExisting ? '总结已替换' : '总结已插入', type: 'success' })
+  }, [])
+
+  // ====== AI: Generate Title ======
+  const handleGenerateTitle = useCallback(async () => {
+    if (!aiConfig?.enabled || !aiConfig.apiKey) {
+      setToast({ message: 'AI 功能未启用，请联系开发者配置', type: 'error' })
+      return
+    }
+
+    if (!editContent.trim()) {
+      setToast({ message: '请先输入一些内容', type: 'error' })
+      return
+    }
+
+    setGeneratingTitle(true)
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error('请求超时')), 10000)
+    })
+
+    try {
+      const title = await Promise.race([
+        chat(aiConfig, [
+          { role: 'system', content: '你是一位专业的中文写作助手。请为用户提供的文本生成一个简洁、准确、吸引人的标题。规则：1. 标题要概括核心内容 2. 不超过20个字 3. 只输出标题内容，不要有任何前缀或解释' },
           { role: 'user', content: editContent },
         ]),
         timeoutPromise
       ]) as string
-      const summaryBlock = `> 【AI 总结】\n> ${summary}\n\n---\n\n`
-      setEditContent(summaryBlock + editContent)
+
+      setEditTitle(title.trim())
+      setToast({ message: '标题已生成', type: 'success' })
     } catch (err) {
-      alert(err instanceof Error ? err.message : '总结失败')
+      setToast({ message: err instanceof Error ? err.message : '生成标题失败', type: 'error' })
     } finally {
       clearTimeout(timeoutId)
-      setSummarizing(false)
+      setGeneratingTitle(false)
     }
   }, [aiConfig, editContent])
 
@@ -692,8 +953,19 @@ ${editContent}
         {/* Sidebar - hidden in focus mode */}
         {!isFocusMode && (
         <aside className={`sidebar ${isMobileMenuOpen ? 'sidebar--open' : ''}`}>
-          <div className="sidebar-header">
-            <span className="sidebar-title">笔记 ({filteredNotes.length})</span>
+          {/* Category Manager */}
+          <CategoryManager
+            categories={categories}
+            selectedCategoryId={selectedCategoryId}
+            onSelectCategory={setSelectedCategoryId}
+            onAddCategory={handleAddCategory}
+            onDeleteCategory={handleDeleteCategory}
+          />
+
+          <div className="sidebar-header" style={{ paddingTop: '12px' }}>
+            <span className="sidebar-title">
+              笔记 ({filteredNotes.length})
+            </span>
           </div>
 
           <div className="note-list">
@@ -715,29 +987,38 @@ ${editContent}
                 )}
               </div>
             ) : (
-              filteredNotes.map((note, index) => (
-                <div
-                  key={note.id}
-                  onClick={() => handleSelectNote(note)}
-                  className={`note-item ${selectedNote?.id === note.id ? 'note-item--active' : ''}`}
-                  style={{ animationDelay: `${index * 40}ms` }}
-                >
-                  <div className="note-item-header">
-                    <span className="note-title">{note.title || '无标题'}</span>
-                    <button
-                      onClick={(e) => handleDeleteNote(note.id, e)}
-                      className="note-delete"
-                      aria-label="Delete note"
-                    >
-                      <TrashIcon />
-                    </button>
+              filteredNotes.map((note, index) => {
+                const category = categories.find(c => c.id === note.categoryId)
+                return (
+                  <div
+                    key={note.id}
+                    onClick={() => handleSelectNote(note)}
+                    className={`note-item ${selectedNote?.id === note.id ? 'note-item--active' : ''}`}
+                    style={{ animationDelay: `${index * 40}ms` }}
+                  >
+                    <div className="note-item-header">
+                      <span className="note-title">{note.title || '无标题'}</span>
+                      <button
+                        onClick={(e) => handleDeleteNote(note.id, e)}
+                        className="note-delete"
+                        aria-label="Delete note"
+                      >
+                        <TrashIcon />
+                      </button>
+                    </div>
+                    {/* 显示所属分类 */}
+                    {category && (
+                      <div className="note-item-category">
+                        <span>{category.name}</span>
+                      </div>
+                    )}
+                    <p className="note-preview">
+                      {note.content.replace(/[#*`>\[\]]/g, '').slice(0, 60) || '空白笔记'}
+                    </p>
+                    <span className="note-time">{formatTime(note.updatedAt)}</span>
                   </div>
-                  <p className="note-preview">
-                    {note.content.replace(/[#*`>\[\]]/g, '').slice(0, 60) || '空白笔记'}
-                  </p>
-                  <span className="note-time">{formatTime(note.updatedAt)}</span>
-                </div>
-              ))
+                )
+              })
             )}
           </div>
         </aside>
@@ -761,14 +1042,24 @@ ${editContent}
                 </button>
 
                 <div className="topbar-actions">
-                  {/* AI Markdown Fix */}
+                  {/* AI Summarize */}
                   <button
-                    className="action-btn"
+                    className="action-btn action-btn-text"
                     onClick={handleSummarize}
                     disabled={summarizing || !editContent.trim()}
-                    title={summarizing ? '正在总结...' : 'AI 总结全文'}
+                    title={summarizing ? '正在生成总结...' : 'AI 智能总结全文或选中内容'}
                   >
-                    <WandIcon />
+                    {summarizing ? (
+                      <>
+                        <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⏳</span>
+                        <span>总结中</span>
+                      </>
+                    ) : (
+                      <>
+                        <WandIcon />
+                        <span>AI总结</span>
+                      </>
+                    )}
                   </button>
 
                   {/* Focus mode */}
@@ -839,6 +1130,33 @@ ${editContent}
                   placeholder="无标题"
                   className="title-input"
                 />
+                <button
+                  className="title-ai-btn title-ai-btn-text"
+                  onClick={handleGenerateTitle}
+                  disabled={generatingTitle || !editContent.trim()}
+                  title={generatingTitle ? '正在生成标题...' : 'AI 根据内容生成标题'}
+                >
+                  {generatingTitle ? (
+                    <>
+                      <span style={{ animation: 'spin 1s linear infinite', display: 'inline-block' }}>⏳</span>
+                      <span>生成中</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.21 1.21 0 0 0 1.72 0L21.64 5.36a1.21 1.21 0 0 0 0-1.72"/>
+                        <path d="m14 7 3 3"/>
+                        <path d="M5 6v4"/>
+                        <path d="M19 14v4"/>
+                        <path d="M10 2v2"/>
+                        <path d="M7 8H3"/>
+                        <path d="M21 16h-4"/>
+                        <path d="M11 3H9"/>
+                      </svg>
+                      <span>AI标题</span>
+                    </>
+                  )}
+                </button>
               </div>
 
               {/* Editor and Preview Side by Side */}
@@ -851,22 +1169,8 @@ ${editContent}
                     onChange={e => setEditContent(e.target.value)}
                     onMouseUp={handleTextSelection}
                     onKeyUp={handleTextSelection}
-                    placeholder="在此书写...
-
-支持 Markdown 语法：
-# 标题
-**粗体** *斜体*
-- 列表项
-`代码`
-```代码块```
-[链接](url)"
+                    placeholder="在此书写...\n\n支持 Markdown 语法：\n# 标题\n**粗体** *斜体*\n- 列表项\n`代码`\n```代码块```\n[链接](url)"
                     className="content-textarea"
-                  />
-                  <AIComplete
-                    textareaRef={textareaRef}
-                    config={aiConfig}
-                    editContent={editContent}
-                    editTitle={editTitle}
                   />
                   <FloatingToolbar
                     textareaRef={textareaRef}
@@ -883,10 +1187,6 @@ ${editContent}
                 <div className="preview-pane">
                   <ReactMarkdown
                     components={{
-                      img({ src, alt, ...props }) {
-                        if (!src) return null
-                        return <img src={src} alt={alt || ''} style={{ maxWidth: '100%', borderRadius: '8px', margin: '1em 0' }} {...props} />
-                      },
                       code({ className, children, ...props }) {
                         const match = /language-(\w+)/.exec(className || '')
                         const isInline = !match && !className
@@ -908,6 +1208,29 @@ ${editContent}
                             {String(children).replace(/\n$/, '')}
                           </SyntaxHighlighter>
                         )
+                      },
+                      blockquote({ children, ...props }) {
+                        const isAISummary = Array.isArray(children) && children.some(c =>
+                          typeof c === 'string' && c.includes('🤖 AI 总结')
+                        )
+                        if (isAISummary) {
+                          return (
+                            <div
+                              style={{
+                                background: 'rgba(59, 130, 246, 0.1)',
+                                border: '1px solid #3b82f6',
+                                borderRadius: '8px',
+                                padding: '16px',
+                                margin: '16px 0',
+                                borderLeft: 'none'
+                              }}
+                              {...props}
+                            >
+                              {children}
+                            </div>
+                          )
+                        }
+                        return <blockquote {...props}>{children}</blockquote>
                       }
                     }}
                   >
@@ -941,6 +1264,36 @@ ${editContent}
           )}
         </div>
       </div>
+
+      {/* Welcome Guide */}
+      {showWelcomeGuide && (
+        <WelcomeGuide
+          onClose={() => setShowWelcomeGuide(false)}
+        />
+      )}
+
+      {/* Summary Dialog */}
+      {showSummaryDialog && summaryResult && (
+        <SummaryDialog
+          summary={summaryResult}
+          originalContent={editContent}
+          hasExistingSummary={hasExistingSummary}
+          onConfirm={handleConfirmSummary}
+          onCancel={() => {
+            setShowSummaryDialog(false)
+            setSummaryResult('')
+          }}
+        />
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   )
 }
